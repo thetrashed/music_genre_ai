@@ -69,6 +69,8 @@ pub const WaveFile = struct {
     header: *WaveHeader,
     wave_data: WaveData,
     allocator: std.mem.Allocator,
+    file_pointer: ?std.fs.File,
+    file_position: usize,
 
     pub fn init(allocator: std.mem.Allocator) !This {
         const header = try allocator.create(WaveHeader);
@@ -77,6 +79,8 @@ pub const WaveFile = struct {
             .header = header,
             .wave_data = undefined,
             .allocator = allocator,
+            .file_pointer = null,
+            .file_position = 0,
         };
     }
 
@@ -85,10 +89,9 @@ pub const WaveFile = struct {
         const file_path = try std.fs.realpathAlloc(this.allocator, fname);
         defer this.allocator.free(file_path);
 
-        const file = try std.fs.openFileAbsolute(file_path, .{});
-        defer file.close();
+        this.file_pointer = try std.fs.openFileAbsolute(file_path, .{});
 
-        const reader = file.reader();
+        const reader = this.file_pointer.?.reader();
 
         this.header.magic = try reader.readBytesNoEof(4);
         if (!std.mem.eql(u8, &this.header.magic, "RIFF")) {
@@ -135,32 +138,28 @@ pub const WaveFile = struct {
             },
             else => return error.NotImplementedOrSupported,
         }
-        while (this.readSample(reader)) {} else |err| {
-            switch (err) {
-                error.EndOfStream => {},
-                else => return err,
-            }
-        }
+        this.file_position = 44;
     }
 
     pub fn deinit(this: This) void {
         this.allocator.destroy(this.header);
         switch (this.wave_data) {
-            WaveData.MonoAudio8 => |*wave| {
-                wave.data.deinit();
+            WaveData.MonoAudio8 => |*wave_data| {
+                wave_data.data.deinit();
             },
-            WaveData.MonoAudio16 => |*wave| {
-                wave.data.deinit();
+            WaveData.MonoAudio16 => |*wave_data| {
+                wave_data.data.deinit();
             },
-            WaveData.StereoAudio8 => |*wave| {
-                wave.channel1.deinit();
-                wave.channel2.deinit();
+            WaveData.StereoAudio8 => |*wave_data| {
+                wave_data.channel1.deinit();
+                wave_data.channel2.deinit();
             },
-            WaveData.StereoAudio16 => |*wave| {
-                wave.channel1.deinit();
-                wave.channel2.deinit();
+            WaveData.StereoAudio16 => |*wave_data| {
+                wave_data.channel1.deinit();
+                wave_data.channel2.deinit();
             },
         }
+        this.file_pointer.?.close();
         // this.wave_data.deinit();
     }
 
@@ -170,21 +169,31 @@ pub const WaveFile = struct {
         }
     }
 
-    fn readSample(this: *This, reader: anytype) !void {
+    /// Reads a sample from the wave file.
+    /// - Reads 1 sample from a mono audio file.
+    /// - Reads 1 sample for each channel for a stereo audio file.
+    pub fn readSample(this: *This) !void {
+        try this.file_pointer.?.seekTo(this.file_position);
+        const reader = this.file_pointer.?.reader();
+
         switch (this.wave_data) {
-            WaveData.MonoAudio8 => |*wave| {
-                try wave.data.append(try reader.readInt(i8, .little));
+            WaveData.MonoAudio8 => |*wave_data| {
+                try wave_data.data.append(try reader.readInt(i8, .little));
+                this.file_position += 1;
             },
-            WaveData.MonoAudio16 => |*wave| {
-                try wave.data.append(try reader.readInt(i16, .little));
+            WaveData.MonoAudio16 => |*wave_data| {
+                try wave_data.data.append(try reader.readInt(i16, .little));
+                this.file_position += 2;
             },
-            WaveData.StereoAudio8 => |*wave| {
-                try wave.channel1.append(try reader.readInt(i8, .little));
-                try wave.channel2.append(try reader.readInt(i8, .little));
+            WaveData.StereoAudio8 => |*wave_data| {
+                try wave_data.channel1.append(try reader.readInt(i8, .little));
+                try wave_data.channel2.append(try reader.readInt(i8, .little));
+                this.file_position += 2;
             },
-            WaveData.StereoAudio16 => |*wave| {
-                try wave.channel1.append(try reader.readInt(i16, .little));
-                try wave.channel2.append(try reader.readInt(i16, .little));
+            WaveData.StereoAudio16 => |*wave_data| {
+                try wave_data.channel1.append(try reader.readInt(i16, .little));
+                try wave_data.channel2.append(try reader.readInt(i16, .little));
+                this.file_position += 4;
             },
         }
     }
@@ -194,25 +203,35 @@ test "Wave file header read" {
     var wave = try WaveFile.init(testing.allocator);
     defer wave.deinit();
 
-    wave.decode("test_music/mono16_sinewave.wav") catch |err| {
+    wave.decode("test_music/stereo16_mixture.wav") catch |err| {
         std.log.err("{}", .{err});
         std.os.exit(1);
     };
     wave.printHeader();
 
-    var plot = plotting.Plot(f32).init(testing.allocator);
+    var plot = plotting.Plot(i16).init(testing.allocator);
     defer plot.deinit();
 
-    const len = wave.wave_data.StereoAudio16.channel1.items.len;
-    var ys = std.ArrayList(f32).init(testing.allocator);
-    var time_stamps = std.ArrayList(f32).init(testing.allocator);
-    defer ys.deinit();
+    const len = 100;
+
+    var time_stamps = std.ArrayList(i16).init(testing.allocator);
     defer time_stamps.deinit();
+
     for (0..len) |i| {
-        try time_stamps.append(@as(f32, @floatFromInt(i)) / 44100.00);
-        try ys.append(@as(f32, @floatFromInt(wave.wave_data.StereoAudio16.channel1.items[i])));
+        wave.readSample() catch |err| {
+            switch (err) {
+                error.EndOfStream => break,
+                else => {
+                    std.log.err("{}", .{err});
+                    return err;
+                },
+            }
+        };
+        try time_stamps.append(@as(i16, @intCast(@as(u8, @truncate(i)))));
     }
 
-    try plot.addPlot(time_stamps.items[0..100], ys.items[0..100], null);
-    try plot.saveFig("testing.png", .PNG);
+    try plot.addPlot(time_stamps.items[0..], wave.wave_data.StereoAudio16.channel1.items[0..], "Channel 1");
+    try plot.addPlot(time_stamps.items[0..], wave.wave_data.StereoAudio16.channel2.items[0..], "Channel 2");
+
+    try plot.saveFig("testing3.png", .PNG);
 }
