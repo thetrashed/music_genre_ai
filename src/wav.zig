@@ -195,7 +195,7 @@ pub const WaveFile = struct {
 
     pub fn printHeader(this: This) void {
         inline for (std.meta.fields(@TypeOf(this.header.*))) |field| {
-            std.debug.print("{s}: {any}\n", .{ field.name, @as(field.type, @field(this.header.*, field.name)) });
+            std.log.warn("{s}: {any}", .{ field.name, @as(field.type, @field(this.header.*, field.name)) });
         }
     }
 
@@ -228,14 +228,23 @@ pub const WaveFile = struct {
         }
     }
 
-    pub fn get8BitSampleSlice(this: This, start_sample: usize, size: usize, channel: ?u16) ![]i8 {
+    pub fn get8BitSampleSlice(this: This, start_sample: usize, size: ?usize, channel: ?u16) ![]i8 {
         switch (this.wave_data) {
-            WaveData.MonoAudio8 => |*wave_data| return wave_data.data.items[start_sample .. start_sample + size],
+            WaveData.MonoAudio8 => |*wave_data| {
+                const tmpsize = size orelse wave_data.data.items.len - start_sample;
+                return wave_data.data.items[start_sample .. start_sample + tmpsize];
+            },
             WaveData.MonoAudio16 => return error.AudioNot8Bit,
             WaveData.StereoAudio8 => |*wave_data| {
                 switch (channel orelse 1) {
-                    1 => return wave_data.channel1.items[start_sample .. start_sample + size],
-                    2 => return wave_data.channel2.items[start_sample .. start_sample + size],
+                    1 => {
+                        const tmpsize = size orelse wave_data.channel1.items.len - start_sample;
+                        return wave_data.channel1.items[start_sample .. start_sample + tmpsize];
+                    },
+                    2 => {
+                        const tmpsize = size orelse wave_data.channel2.items.len - start_sample;
+                        return wave_data.channel2.items[start_sample .. start_sample + tmpsize];
+                    },
                     else => return error.IncorrectChannel,
                 }
             },
@@ -244,15 +253,24 @@ pub const WaveFile = struct {
         }
     }
 
-    pub fn get16BitSampleSlice(this: This, start_sample: usize, size: usize, channel: ?u16) ![]i16 {
+    pub fn get16BitSampleSlice(this: This, start_sample: usize, size: ?usize, channel: ?u16) ![]i16 {
         switch (this.wave_data) {
             WaveData.MonoAudio8 => return error.AudioNot16Bit,
-            WaveData.MonoAudio16 => |*wave_data| return wave_data.data.items[start_sample .. start_sample + size],
+            WaveData.MonoAudio16 => |*wave_data| {
+                const tmpsize = size orelse wave_data.data.items.len - start_sample;
+                return wave_data.data.items[start_sample .. start_sample + tmpsize];
+            },
             WaveData.StereoAudio8 => return error.AudioNot16Bit,
             WaveData.StereoAudio16 => |*wave_data| {
                 switch (channel orelse 1) {
-                    1 => return wave_data.channel1.items[start_sample .. start_sample + size],
-                    2 => return wave_data.channel2.items[start_sample .. start_sample + size],
+                    1 => {
+                        const tmpsize = size orelse wave_data.channel1.items.len - start_sample;
+                        return wave_data.channel1.items[start_sample .. start_sample + tmpsize];
+                    },
+                    2 => {
+                        const tmpsize = size orelse wave_data.channel2.items.len - start_sample;
+                        return wave_data.channel2.items[start_sample .. start_sample + tmpsize];
+                    },
                     else => return error.IncorrectChannel,
                 }
             },
@@ -264,7 +282,7 @@ test "Wave file header read" {
     const fnames = [_][]const u8{
         "test_music/stereo16_sine",
         "test_music/stereo16_sine_cosine",
-        "test_music/stereo16_mixture",
+       "test_music/stereo16_mixture",
         "test_music/mono16_sinewave",
     };
 
@@ -281,7 +299,7 @@ test "Wave file header read" {
         var plot = plotting.Plot(i16).init(testing.allocator);
         defer plot.deinit();
 
-        const len = 1000;
+        const len = 88200;
 
         var time_stamps = std.ArrayList(i16).init(testing.allocator);
         defer time_stamps.deinit();
@@ -296,11 +314,11 @@ test "Wave file header read" {
                     },
                 }
             };
-            try time_stamps.append(@as(i16, @intCast(@as(u8, @truncate(i)))));
+            try time_stamps.append(@intCast(@as(u15, @truncate(i))));
         }
 
-        try plot.addPlot(time_stamps.items[0..100], try wave.get16BitSampleSlice(300, 100, 1), "Channel 1");
-        try plot.addPlot(time_stamps.items[0..100], try wave.get16BitSampleSlice(300, 100, 2), "Channel 2");
+        try plot.addPlot(time_stamps.items[0..1000], try wave.get16BitSampleSlice(0, 1000, 1), "Channel 1");
+        try plot.addPlot(time_stamps.items[0..1000], try wave.get16BitSampleSlice(0, 1000, 2), "Channel 2");
 
         try plot.saveFig(fname ++ ".png", .PNG);
     }
