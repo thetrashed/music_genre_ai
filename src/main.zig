@@ -1,24 +1,44 @@
 const std = @import("std");
+const wav = @import("wav.zig");
+const dft = @import("dft.zig");
+const plotting = @import("plotting.zig");
 
 pub fn main() !void {
-    // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)
-    std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gpa.allocator();
+    defer {
+        std.debug.assert(gpa.deinit() == .ok);
+    }
 
-    // stdout is for the actual output of your application, for example if you
-    // are implementing gzip, then only the compressed bytes should be sent to
-    // stdout, not any debugging messages.
-    const stdout_file = std.io.getStdOut().writer();
-    var bw = std.io.bufferedWriter(stdout_file);
-    const stdout = bw.writer();
+    const fnames = [_][]const u8{
+        "test_music/audiocheck.net_hdsweep_1Hz_44000Hz_-3dBFS_30s",
+        "test_music/Free_Test_Data_10MB_WAV",
+        "test_music/mono16_sinewave",
+        "test_music/stereo16_mixture",
+        "test_music/stereo16_sine_cosine",
+        "test_music/stereo16_sine",
+        "test_music/wavTones.com.unregistred.rect_-6dBFS_5samples",
+        "test_music/wavTones.com.unregistred.rect_-10dBFS_12samples",
+    };
 
-    try stdout.print("Run `zig build test` to run the tests.\n", .{});
+    inline for (fnames) |fname| {
+        var wave = wav.WaveFile.init(allocator);
+        defer wave.deinit();
 
-    try bw.flush(); // don't forget to flush!
-}
+        wave.decodeFile(fname ++ ".wav") catch |err| {
+            std.log.err("{}", .{err});
+            std.os.exit(1);
+        };
+        wave.printHeader();
+        const samples = try wave.getSampleSliceAlloc(allocator, 1, 1000, 1);
+        defer allocator.free(samples);
 
-test "simple test" {
-    var list = std.ArrayList(i32).init(std.testing.allocator);
-    defer list.deinit(); // try commenting this out and see if zig detects the memory leak!
-    try list.append(42);
-    try std.testing.expectEqual(@as(i32, 42), list.pop());
+        const transformed_samples = try allocator.alloc(f32, 256);
+        defer allocator.free(transformed_samples);
+        
+        dft.fft(samples, 1, transformed_samples, 256);
+        
+        std.log.info("{any}", .{samples[0..100]});
+        std.log.info("{any}", .{transformed_samples[0..100]});
+    }
 }
