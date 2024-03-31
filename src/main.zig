@@ -42,7 +42,7 @@ pub fn main() !void {
             );
             defer allocator.free(new_dir);
 
-            var files = try std.fs.cwd().openDir(new_dir, .{.iterate = true});
+            var files = try std.fs.cwd().openDir(new_dir, .{ .iterate = true });
             defer files.close();
             log.info("Processing: {s}", .{new_dir});
 

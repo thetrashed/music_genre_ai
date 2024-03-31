@@ -70,14 +70,16 @@ pub fn windowedFFT(
     var ret_map = Spectogram.init(allocator);
 
     var i: isize = 0;
+
     const tmp_buffer = try allocator.alloc(c32, size);
     defer allocator.free(tmp_buffer);
-
     @memset(tmp_buffer, c32.init(0.0, 0.0));
-    while (iterator.next()) |window| {
-        var tmp_input = try allocator.alloc(f32, size);
-        @memset(tmp_input, 0.0);
 
+    var tmp_input = try allocator.alloc(f32, size);
+    defer allocator.free(tmp_input);
+    @memset(tmp_input, 0.0);
+
+    while (iterator.next()) |window| {
         // Apply the Hann window function
         for (window, 0..) |w, j| {
             const hann = 0.5 - 0.5 * math.cos(
@@ -87,7 +89,6 @@ pub fn windowedFFT(
         }
 
         fft(tmp_input, 1, tmp_buffer, size);
-        allocator.free(tmp_input);
 
         var data = try allocator.alloc(f32, size);
         for (0.., tmp_buffer) |j, fft_data| {
