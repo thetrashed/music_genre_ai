@@ -1,7 +1,8 @@
 const std = @import("std");
 const mem = std.mem;
 const testing = std.testing;
-const os = std.os;
+const posix = std.posix;
+const log = std.log.scoped(.wave);
 
 const Allocator = mem.Allocator;
 
@@ -61,10 +62,7 @@ pub const WaveFile = struct {
     }
 
     pub fn decodeFile(self: *Self, fname: []const u8) !void {
-        const fname_abs = try std.fs.realpathAlloc(self.allocator, fname);
-        defer self.allocator.free(fname_abs);
-
-        const file = try std.fs.openFileAbsolute(fname_abs, .{});
+        const file = try std.fs.cwd().openFile(fname, .{});
         defer file.close();
 
         var buf_reader = std.io.bufferedReader(file.reader());
@@ -118,9 +116,8 @@ pub const WaveFile = struct {
         // self.header.?.data_magic = [_]u8{ 'd', 'a', 't', 'a' };
         self.header.?.data_size = try reader.readInt(u32, .little);
 
-        self.mapped_data = try os.mmap(null, self.header.?.data_size, os.PROT.READ, os.MAP.PRIVATE, file.handle, 0);
-
-        self.printHeader();
+        const map_flags = posix.MAP{ .TYPE = std.os.linux.MAP_TYPE.PRIVATE };
+        self.mapped_data = try posix.mmap(null, self.header.?.data_size, posix.PROT.READ, map_flags, file.handle, 0);
     }
 
     pub fn getAllDataSliceAlloc(self: *Self, allocator: Allocator, channel: ?usize) ![]i32 {
@@ -198,59 +195,106 @@ pub const WaveFile = struct {
         }
 
         if (self.mapped_data) |mapped_data| {
-            os.munmap(mapped_data);
+            posix.munmap(mapped_data);
         }
     }
 
     pub fn printHeader(self: Self) void {
         inline for (std.meta.fields(@TypeOf(self.header.?.*))) |field| {
-            std.log.warn("{s}: {any}", .{ field.name, @as(field.type, @field(self.header.?.*, field.name)) });
+            log.info("{s}: {any}", .{ field.name, @as(field.type, @field(self.header.?.*, field.name)) });
         }
     }
 };
 
 test "Wave file header read" {
-    const fnames = [_][]const u8{
-        "test_music/audiocheck.net_hdsweep_1Hz_44000Hz_-3dBFS_30s",
-        "test_music/Free_Test_Data_10MB_WAV",
-        "test_music/mono16_sinewave",
-        "test_music/stereo16_mixture",
-        "test_music/stereo16_sine_cosine",
-        "test_music/stereo16_sine",
-        "test_music/test1",
-        "test_music/wavTones.com.unregistred.rect_-10dBFS_12samples",
-        "test_music/wavTones.com.unregistred.rect_-6dBFS_5samples",
-        // "test_music/Free_Test_Data_10MB_WAV",
-        // "test_music/mono16_sinewave",
-        // "test_music/stereo16_mixture",
-        // "test_music/stereo16_sine_cosine",
-        // "test_music/stereo16_sine",
-        // "test_music/test1",
-        // "test_music/wavTones.com.unregistred.rect_-10dBFS_12samples",
-        // "test_music/wavTones.com.unregistred.rect_-6dBFS_5samples",
-        // "test_music/project_raven",
-    };
+    // const fnames = [_][]const u8{
+    // "test_music/audiocheck.net_hdsweep_1Hz_44000Hz_-3dBFS_30s",
+    // "test_music/Free_Test_Data_10MB_WAV",
+    // "test_music/mono16_sinewave",
+    // "test_music/stereo16_mixture",
+    // "test_music/stereo16_sine_cosine",
+    // "test_music/stereo16_sine",
+    // "test_music/test1",
+    // "test_music/wavTones.com.unregistred.rect_-10dBFS_12samples",
+    // "test_music/wavTones.com.unregistred.rect_-6dBFS_5samples",
+    // "test_music/Free_Test_Data_10MB_WAV",
+    // "test_music/mono16_sinewave",
+    // "test_music/stereo16_mixture",
+    // "test_music/stereo16_sine_cosine",
+    // "test_music/stereo16_sine",
+    // "test_music/test1",
+    // "test_music/wavTones.com.unregistred.rect_-10dBFS_12samples",
+    // "test_music/wavTones.com.unregistred.rect_-6dBFS_5samples",
+    // "test_music/project_raven",
+    // };
+    var count: usize = 0;
+    const dir_path = try std.fs.realpathAlloc(testing.allocator, "/home/thetrashed/Programming/Personal/music_genre_ai/test_music/Data/genres_original");
 
-    inline for (fnames) |fname| {
-        std.log.warn("Processing {s}", .{fname});
-        var wave = WaveFile.init(testing.allocator);
-        defer wave.deinit();
+    defer testing.allocator.free(dir_path);
 
-        wave.decodeFile(fname ++ ".wav") catch |err| {
-            std.log.err("{}", .{err});
-            std.os.exit(1);
-        };
+    var directories = try std.fs.openDirAbsolute(
+        dir_path,
+        .{ .iterate = true },
+    );
+    defer directories.close();
+    var d_it = directories.iterate();
 
-        const x = try wave.getAllDataSliceAlloc(testing.allocator, 2);
-        defer testing.allocator.free(x);
+    while (try d_it.next()) |directory| {
+        if (directory.kind == .directory) {
+            const new_dir = try std.fmt.allocPrint(testing.allocator, "{s}/{s}", .{ dir_path, directory.name });
+            defer testing.allocator.free(new_dir);
 
-        const file = try std.fs.cwd().createFile(fname ++ ".dat", .{});
-        defer file.close();
-        var buf_writer = std.io.bufferedWriter(file.writer());
-        const writer = buf_writer.writer();
-        for (0..x.len) |i| {
-            try writer.print("{d},{d}\n", .{ i, x[i] });
+            var files = try std.fs.openDirAbsolute(new_dir, .{ .iterate = true });
+            defer files.close();
+            std.debug.print("Processing: {s}\n", .{new_dir});
+
+            var f_it = files.iterate();
+            while (try f_it.next()) |file| {
+                if (!std.mem.eql(u8, file.name[file.name.len - 4 .. file.name.len], ".wav")) {
+                    std.debug.print("{s}\n", .{file.name});
+                    continue;
+                }
+                const file_path = try std.fmt.allocPrint(testing.allocator, "{s}/{s}/{s}", .{ dir_path, directory.name, file.name });
+                defer testing.allocator.free(file_path);
+
+                log.warn("Processing {s}", .{file_path});
+                var wave = WaveFile.init(testing.allocator);
+                defer wave.deinit();
+
+                wave.decodeFile(file_path) catch |err| {
+                    log.err("{}", .{err});
+                    return;
+                };
+
+                const x = try wave.getAllDataSliceAlloc(testing.allocator, 2);
+                defer testing.allocator.free(x);
+                count += 1;
+            }
         }
-        try buf_writer.flush();
     }
+
+    std.debug.print("{d} files processed\n", .{count});
+
+    // inline for (fnames) |fname| {
+    //     std.log.warn("Processing {s}", .{fname});
+    //     var wave = WaveFile.init(testing.allocator);
+    //     defer wave.deinit();
+
+    //     wave.decodeFile(fname ++ ".wav") catch |err| {
+    //         std.log.err("{}", .{err});
+    //         return;
+    //     };
+
+    //     const x = try wave.getAllDataSliceAlloc(testing.allocator, 2);
+    //     defer testing.allocator.free(x);
+
+    //     const file = try std.fs.cwd().createFile(fname ++ ".dat", .{});
+    //     defer file.close();
+    //     var buf_writer = std.io.bufferedWriter(file.writer());
+    //     const writer = buf_writer.writer();
+    //     for (0..x.len) |i| {
+    //         try writer.print("{d},{d}\n", .{ i, x[i] });
+    //     }
+    //     try buf_writer.flush();
+    // }
 }

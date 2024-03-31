@@ -2,3 +2,5 @@ zig-out/
 zig-cache/
 test_music/
 *.png
+vgcore*
+valgrind-out.txt

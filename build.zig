@@ -15,25 +15,39 @@ pub fn build(b: *std.Build) void {
     // set a preferred release mode, allowing the user to decide how to optimize.
     const optimize = b.standardOptimizeOption(.{});
 
-    const lib = b.addStaticLibrary(.{
-        .name = "music_ai",
+    const wave_lib = b.addStaticLibrary(.{
+        .name = "wave_lib",
         // In this case the main source file is merely a path, however, in more
         // complicated build scripts, this could be a generated file.
         .root_source_file = .{ .path = "src/wav.zig" },
         .target = target,
         .optimize = optimize,
+        .use_lld = if (optimize == .Debug) false else true,
+        .use_llvm = if (optimize == .Debug) false else true,
     });
 
     // This declares intent for the library to be installed into the standard
     // location when the user invokes the "install" step (the default step when
     // running `zig build`).
-    b.installArtifact(lib);
+    b.installArtifact(wave_lib);
+
+    const dft_lib = b.addStaticLibrary(.{
+        .name = "dft_lib",
+        .root_source_file = .{ .path = "src/dft.zig" },
+        .target = target,
+        .optimize = optimize,
+        .use_lld = if (optimize == .Debug) false else true,
+        .use_llvm = if (optimize == .Debug) false else true,
+    });
+    b.installArtifact(dft_lib);
 
     const exe = b.addExecutable(.{
         .name = "music_ai",
         .root_source_file = .{ .path = "src/main.zig" },
         .target = target,
         .optimize = optimize,
+        .use_lld = if (optimize == .Debug) false else true,
+        .use_llvm = if (optimize == .Debug) false else true,
     });
 
     // This declares intent for the executable to be installed into the
