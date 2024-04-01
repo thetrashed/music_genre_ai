@@ -2,11 +2,11 @@ const std = @import("std");
 const wav = @import("wav.zig");
 const dft = @import("dft.zig");
 const log = std.log.scoped(.main);
-const plotting = @import("plotting.zig");
 
 const c32 = std.math.Complex(f32);
 
-const fft_size = std.math.pow(usize, 2, 13);
+const fft_size = 1024;
+const dir_path = "test_music/Data/genres_original";
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -15,24 +15,24 @@ pub fn main() !void {
         std.debug.assert(gpa.deinit() == .ok);
     }
 
-    const dir_path = "test_music/Data/genres_original";
-
-    var directories = try std.fs.cwd().openDir(
+    var directories = std.fs.cwd().openDir(
         dir_path,
         .{ .iterate = true },
-    );
+    ) catch |err| {
+        log.err("{s}: {}", .{ dir_path, err });
+        return err;
+    };
     defer directories.close();
 
-    var spectograms = std.ArrayList(dft.Spectogram).init(allocator);
+    var spectograms: [1000]dft.Spectogram = undefined;
     defer {
-        while (true) {
-            var spectogram = spectograms.popOrNull() orelse break;
+        for (&spectograms) |*spectogram| {
             spectogram.deinit();
         }
-        spectograms.deinit();
     }
 
     var d_it = directories.iterate();
+    var spect_index: usize = 0;
     while (try d_it.next()) |directory| {
         if (directory.kind == .directory) {
             const new_dir = try std.fmt.allocPrint(
@@ -42,8 +42,12 @@ pub fn main() !void {
             );
             defer allocator.free(new_dir);
 
-            var files = try std.fs.cwd().openDir(new_dir, .{ .iterate = true });
+            var files = std.fs.cwd().openDir(new_dir, .{ .iterate = true }) catch |err| {
+                log.err("{s}: {}", .{ new_dir, err });
+                return err;
+            };
             defer files.close();
+
             log.info("Processing: {s}", .{new_dir});
 
             var f_it = files.iterate();
@@ -66,14 +70,26 @@ pub fn main() !void {
                 defer wave.deinit();
 
                 wave.decodeFile(file_path) catch |err| {
-                    log.err("{}", .{err});
-                    return;
+                    log.err("{s}: {}", .{ file_path, err });
+                    return err;
                 };
 
                 const samples = try wave.getAllDataSliceAlloc(allocator, 2);
                 defer allocator.free(samples);
 
-                try spectograms.append(try dft.windowedFFT(allocator, samples, fft_size));
+                spectograms[spect_index] = try dft.windowedFFT(allocator, samples, fft_size);
+                const spect_fname = try std.fmt.allocPrint(
+                    allocator,
+                    "{s}/{s}/{s}/{s}",
+                    .{ dir_path, "../spectograms", directory.name, file.name[0 .. file.name.len - 4] },
+                );
+                defer allocator.free(spect_fname);
+
+                spectograms[spect_index].saveSpectogram(spect_fname) catch |err| {
+                    log.err("{s}: {}", .{ spect_fname, err });
+                    return err;
+                };
+                spect_index += 1;
             }
         }
     }

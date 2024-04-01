@@ -23,6 +23,22 @@ pub const Spectogram = struct {
         try self.map.putNoClobber(self.allocator, key, value);
     }
 
+    pub fn saveSpectogram(self: *Self, fname: []u8) !void {
+        var file = std.fs.cwd().openFile(fname, .{}) catch |err|
+            switch (err) {
+            error.FileNotFound => try std.fs.cwd().createFile(fname, .{}),
+            else => return err,
+        };
+
+        defer file.close();
+
+        var w = file.writer();
+        var it = self.map.iterator();
+        while (it.next()) |entry| {
+            try w.print("{d}\t{any}\n", .{ entry.key_ptr.*, entry.value_ptr.* });
+        }
+    }
+
     pub fn deinit(self: *Self) void {
         while (self.map.popOrNull()) |entry| {
             self.allocator.free(entry.value);
