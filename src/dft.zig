@@ -10,11 +10,13 @@ pub const Spectogram = struct {
     const Self = @This();
 
     map: std.AutoArrayHashMapUnmanaged(i32, []f32),
+    sample_rate: u32,
     allocator: mem.Allocator,
 
-    pub fn init(allocator: mem.Allocator) Self {
+    pub fn init(allocator: mem.Allocator, sample_rate: u32) Self {
         return .{
             .map = std.AutoArrayHashMapUnmanaged(i32, []f32){},
+            .sample_rate = sample_rate,
             .allocator = allocator,
         };
     }
@@ -78,12 +80,13 @@ pub fn windowedFFT(
     allocator: std.mem.Allocator,
     input: []i32,
     fft_size: usize,
+    sample_rate: u32,
 ) !Spectogram {
     const size = if (fft_size > input.len) input.len else fft_size;
     var iterator = mem.window(i32, input, size, size / 2);
 
     // Init hashmap for spectogram
-    var ret_map = Spectogram.init(allocator);
+    var ret_map = Spectogram.init(allocator, sample_rate);
 
     var i: isize = 0;
 

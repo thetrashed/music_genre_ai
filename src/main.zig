@@ -82,6 +82,7 @@ pub fn main() !void {
                     allocator,
                     "{s}/{s}/{s}/{s}",
                     .{ dir_path, "../spectograms", directory.name, file.name[0 .. file.name.len - 4] },
+                    wave.header.?.sample_rate,
                 );
                 defer allocator.free(spect_fname);
 
