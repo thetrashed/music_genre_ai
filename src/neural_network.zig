@@ -50,6 +50,21 @@ const Layer = struct {
         };
     }
 
+    pub fn initWeights(self: Self, layer_no: usize) void {
+        const seed: u64 = @truncate(@as(u128, @bitCast(std.time.nanoTimestamp())));
+        var prng = std.rand.DefaultPrng.init(seed);
+
+        for (self.neu) |*neuron| {
+            for (neuron.out_weights, neuron.dw) |*out_weight, *dw| {
+                out_weight = prng.random().float(f32);
+                dw = 0.0;
+            }
+            if (layer_no > 0) {
+                neuron.bias = prng.random().float(f32);
+            }
+        }
+    }
+
     pub fn deinit(self: Self) void {
         self.allocator.free(self.neu);
     }
@@ -70,6 +85,11 @@ pub fn createArchitecture(allocator: mem.Allocator, num_layers: usize, num_neuro
             log.info("Neuron {d} in Layer {d} created", .{ j + 1, i + 1 });
         }
     }
-    
-    // TODO: Initialise weights
+
+    for (0.., layers) |i, *layer| {
+        layer.initWeights(i);
+    }
+    for (0..num_neurons[num_layers - 1]) |*num_neuron| {
+        layers[num_layers - 1].neu[num_neuron].bias = prng.random().float(f32);
+    }
 }
