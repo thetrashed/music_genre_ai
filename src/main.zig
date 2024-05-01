@@ -77,12 +77,16 @@ pub fn main() !void {
                 const samples = try wave.getAllDataSliceAlloc(allocator, 2);
                 defer allocator.free(samples);
 
-                spectograms[spect_index] = try dft.windowedFFT(allocator, samples, fft_size);
+                spectograms[spect_index] = try dft.windowedFFT(
+                    allocator,
+                    samples,
+                    fft_size,
+                    wave.header.?.sample_rate,
+                );
                 const spect_fname = try std.fmt.allocPrint(
                     allocator,
                     "{s}/{s}/{s}/{s}",
                     .{ dir_path, "../spectograms", directory.name, file.name[0 .. file.name.len - 4] },
-                    wave.header.?.sample_rate,
                 );
                 defer allocator.free(spect_fname);
 

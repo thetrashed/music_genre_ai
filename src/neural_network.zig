@@ -2,6 +2,9 @@ const std = @import("std");
 const mem = std.mem;
 const log = std.log.scoped(.neural_network);
 
+const seed: u64 = @truncate(@as(u128, @bitCast(std.time.nanoTimestamp())));
+var prng = std.rand.DefaultPrng.init(seed);
+
 const Neuron = struct {
     const Self = @This();
 
@@ -51,9 +54,6 @@ const Layer = struct {
     }
 
     pub fn initWeights(self: Self, layer_no: usize) void {
-        const seed: u64 = @truncate(@as(u128, @bitCast(std.time.nanoTimestamp())));
-        var prng = std.rand.DefaultPrng.init(seed);
-
         for (self.neu) |*neuron| {
             for (neuron.out_weights, neuron.dw) |*out_weight, *dw| {
                 out_weight = prng.random().float(f32);
@@ -80,7 +80,7 @@ pub fn createArchitecture(allocator: mem.Allocator, num_layers: usize, num_neuro
 
         for (0..num_neurons[i]) |j| {
             if (i < (num_layers - 1)) {
-                layers[i].neu[j] = try Neuron.init(allocator, num_nurons[i + 1]);
+                layers[i].neu[j] = try Neuron.init(allocator, num_neurons[i + 1]);
             }
             log.info("Neuron {d} in Layer {d} created", .{ j + 1, i + 1 });
         }
@@ -89,7 +89,7 @@ pub fn createArchitecture(allocator: mem.Allocator, num_layers: usize, num_neuro
     for (0.., layers) |i, *layer| {
         layer.initWeights(i);
     }
-    for (0..num_neurons[num_layers - 1]) |*num_neuron| {
+    for (0..num_neurons[num_layers - 1]) |num_neuron| {
         layers[num_layers - 1].neu[num_neuron].bias = prng.random().float(f32);
     }
 }

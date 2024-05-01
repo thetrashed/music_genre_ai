@@ -123,7 +123,7 @@ pub fn windowedFFT(
 }
 
 test "dft_test" {
-    var inputs = [_]i32{ 1, 1, 1, 1, 0, 0, 0, 0 };
+    var inputs = [_]f32{ 1, 1, 1, 1, 0, 0, 0, 0 };
 
     const outputs = try testing.allocator.alloc(c32, inputs.len);
     defer testing.allocator.free(outputs);
@@ -135,9 +135,9 @@ test "dft_test" {
 }
 
 test "windowed_fft test" {
-    var inputs = [_]i32{ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 };
+    var inputs = [_]i32{ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
 
-    var spect = try windowedFFT(testing.allocator, &inputs, 5);
+    var spect = try windowedFFT(testing.allocator, &inputs, 8, 1);
     defer spect.deinit();
 
     var it = spect.map.iterator();
