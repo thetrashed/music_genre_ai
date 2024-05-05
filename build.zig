@@ -96,6 +96,13 @@ pub fn build(b: *std.Build) void {
 
     const run_dft_unit_tests = b.addRunArtifact(dft_unit_tests);
 
+    const nn_unit_tests = b.addTest(.{
+        .root_source_file = .{ .path = "src/neural_network.zig" },
+        .target = target,
+        .optimize = optimize,
+    });
+    const run_nn_unit_tests = b.addRunArtifact(nn_unit_tests);
+
     // Similar to creating the run step earlier, this exposes a `test` step to
     // the `zig build --help` menu, providing a way for the user to request
     // running the unit tests.
@@ -104,4 +111,7 @@ pub fn build(b: *std.Build) void {
 
     const dft_test_step = b.step("dft_test", "Run unit tests for dtf.zig");
     dft_test_step.dependOn(&run_dft_unit_tests.step);
+
+    const nn_test_step = b.step("nn_test", "Run unit tests for neural_network.zig");
+    nn_test_step.dependOn(&run_nn_unit_tests.step);
 }
