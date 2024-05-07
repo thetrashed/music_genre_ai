@@ -183,7 +183,7 @@ pub fn updateWeights(architecture: []Layer, alpha: f32) void {
     }
 }
 
-pub fn feedInput(layer: *Layer, input: [][]f32, i: usize) void {
+fn feedInputTest(layer: *Layer, input: [][]f32, i: usize) void {
     for (layer.neu, 0..) |*neuron, j| {
         neuron.actv = input[i][j];
         log.warn("Input: {d}", .{neuron.actv});
@@ -238,7 +238,7 @@ test "xor_nn" {
     var it: usize = 0;
     while (it < 20000) : (it += 1) {
         for (0..inputs.len) |i| {
-            feedInput(&architecture[0], inputs, i);
+            feedInputTest(&architecture[0], inputs, i);
             forwardPropagation(architecture);
             backwardPropagation(architecture, outputs, i);
             updateWeights(architecture, alpha);
