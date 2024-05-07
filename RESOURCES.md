@@ -1,5 +1,5 @@
 # Resources
-The following is a list of the resources that along the way while building the project:
+The following is a list of the resources that helped along the way while building the project:
 - Artificial Intelligence: A Modern Approach, S. Russel, P. Norvig
 - http://neuralnetworksanddeeplearning.com/chap2.html
 - Find the genre of a song with deep learning: https://medium.com/@juliendespois/finding-the-genre-of-a-song-with-deep-learning-da8f59a61194
