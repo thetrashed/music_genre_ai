@@ -25,6 +25,22 @@ pub const Spectogram = struct {
         try self.map.putNoClobber(self.allocator, key, value);
     }
 
+    pub fn normalise(self: *Self) void {
+        var max: f32 = math.floatMin(f32);
+        var spec_it = self.map.iterator();
+        while (spec_it.next()) |it| {
+            const tmp_max = mem.max(f32, it.value_ptr.*);
+            if (tmp_max > max) {
+                max = tmp_max;
+            }
+        }
+        while (spec_it.next()) |*it| {
+            for (0..it.value_ptr.*.len) |i| {
+                it.value_ptr.*[i] = it.value_ptr.*[i] / max;
+            }
+        }
+    }
+
     pub fn saveSpectogram(self: *Self, fname: []u8) !void {
         var file = std.fs.cwd().openFile(fname, .{}) catch |err|
             switch (err) {
@@ -135,7 +151,7 @@ test "dft_test" {
 }
 
 test "windowed_fft test" {
-    var inputs = [_]i32{ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
+    var inputs = [_]i32{ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 };
 
     var spect = try windowedFFT(testing.allocator, &inputs, 8, 1);
     defer spect.deinit();

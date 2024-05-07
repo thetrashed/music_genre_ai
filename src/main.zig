@@ -31,7 +31,6 @@ pub fn main() !void {
         @memset(expected_outputs[i], 0.0);
         expected_outputs[i][i / 100] = 1.0;
     }
-    log.info("{any}", .{expected_outputs});
 
     // Get and open the directory in which the test data is stored
     var directories = std.fs.cwd().openDir(
@@ -46,6 +45,11 @@ pub fn main() !void {
     // Allocate space for the spectograms
     const spectograms: []dft.Spectogram = try allocator.alloc(dft.Spectogram, 1000);
     defer allocator.free(spectograms);
+    errdefer {
+        for (spectograms) |*spectogram| {
+            spectogram.deinit();
+        }
+    }
 
     // Allocate space for the labels (technically the label mappings)
     const labels: [][]u8 = try allocator.alloc([]u8, 10);
@@ -65,17 +69,20 @@ pub fn main() !void {
         allocator.free(flattened_data);
     }
 
-    for (spectograms, 0..) |spectogram, i| {
+    for (spectograms, 0..) |*spectogram, i| {
+        // Normalise the spectrum
+        spectogram.normalise();
+
         var j: usize = 0;
-
-        // Get the maximum value for the spectogram (used for normalisation
-        const amax = std.mem.max(f32, spectogram.map.values()[0]);
-
         // The flattening part
         var spec_it = spectogram.map.iterator();
+        flattened_data[i] = try allocator.alloc(f32, 600 * 1024);
         while (j < 600) : (j += 1) {
             const val = (spec_it.next() orelse break).value_ptr.*;
-            flattened_data[i][j] = val[0] / amax; // Normalised value
+
+            for (val) |v| {
+                flattened_data[i][j] = v;
+            }
         }
     }
 
@@ -84,9 +91,11 @@ pub fn main() !void {
         spectogram.deinit();
     }
 
-    for (labels) |label| {
-        log.info("{s}", .{label});
-    }
+    // Set up the neural network architecture
+    // 4 layers -> 2 hidden, 1 input and 1 output layer
+    // Since the input arrays are 600 long,
+    const arch_type = [_]usize{ 600, 1200, 1200, 10 };
+    _ = arch_type;
 }
 
 // Looping over the directories and related stuff, including reading the actual audio
