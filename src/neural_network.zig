@@ -4,7 +4,7 @@ const math = std.math;
 const testing = std.testing;
 const log = std.log.scoped(.neural_network);
 
-const seed: u64 = @truncate(@as(u128, 1000));
+const seed: u64 = 1000;
 var prng = std.rand.DefaultPrng.init(seed);
 
 const Neuron = struct {
@@ -77,8 +77,8 @@ pub fn createArchitecture(allocator: mem.Allocator, num_layers: usize, num_neuro
 
     for (0..layers.len) |i| {
         layers[i] = try Layer.init(allocator, num_neurons[i]);
-        log.warn("Created layer: {d}", .{i + 1});
-        log.warn("Number of Neurons in Layer {d}: {d}", .{ i + 1, layers[i].neu.len });
+        log.info("Created layer: {d}", .{i + 1});
+        log.info("Number of Neurons in Layer {d}: {d}", .{ i + 1, layers[i].neu.len });
 
         for (0..num_neurons[i]) |j| {
             if (i < (num_layers - 1)) {
@@ -86,7 +86,7 @@ pub fn createArchitecture(allocator: mem.Allocator, num_layers: usize, num_neuro
             } else {
                 layers[i].neu[j] = try Neuron.init(allocator, 0);
             }
-            log.warn("Neuron {d} in Layer {d} created", .{ j + 1, i + 1 });
+            log.info("Neuron {d} in Layer {d} created", .{ j + 1, i + 1 });
         }
     }
 
@@ -94,7 +94,7 @@ pub fn createArchitecture(allocator: mem.Allocator, num_layers: usize, num_neuro
         for (0..layers[i].neu.len) |j| {
             for (0..layers[i + 1].neu.len) |k| {
                 layers[i].neu[j].out_weights.?[k] = prng.random().float(f32);
-                log.warn("{d}:w[{d}][{d}]: {d}", .{ k, i, j, layers[i].neu[j].out_weights.?[k] });
+                // log.info("{d}:w[{d}][{d}]: {d}", .{ k, i, j, layers[i].neu[j].out_weights.?[k] });
                 layers[i].neu[j].dw.?[k] = 0.0;
             }
             if (i > 0) {
@@ -135,7 +135,7 @@ pub fn forwardPropagation(architecture: []Layer) void {
             } else {
                 // Sigmoid for output layer
                 neuron.actv = 1 / (1 + math.exp(-neuron.z));
-                log.warn("Output: {d}", .{math.round(neuron.actv)});
+                // log.info("Output: {d}", .{neuron.actv});
             }
         }
     }
@@ -183,10 +183,10 @@ pub fn updateWeights(architecture: []Layer, alpha: f32) void {
     }
 }
 
-fn feedInputTest(layer: *Layer, input: [][]f32, i: usize) void {
+pub fn feedInput(layer: *Layer, input: [][]f32, input_index: usize) void {
     for (layer.neu, 0..) |*neuron, j| {
-        neuron.actv = input[i][j];
-        log.warn("Input: {d}", .{neuron.actv});
+        neuron.actv = input[input_index][j];
+        // log.info("Input: {d}", .{neuron.actv});
     }
 }
 
@@ -238,7 +238,7 @@ test "xor_nn" {
     var it: usize = 0;
     while (it < 20000) : (it += 1) {
         for (0..inputs.len) |i| {
-            feedInputTest(&architecture[0], inputs, i);
+            feedInput(&architecture[0], inputs, i);
             forwardPropagation(architecture);
             backwardPropagation(architecture, outputs, i);
             updateWeights(architecture, alpha);

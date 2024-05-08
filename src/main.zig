@@ -10,6 +10,8 @@ const log = std.log.scoped(.main);
 const fft_size = 1024;
 const dir_path = "test_music/Data/genres_original";
 
+const input_samples = 10;
+
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
@@ -76,8 +78,8 @@ pub fn main() !void {
         var j: usize = 0;
         // The flattening part
         var spec_it = spectogram.map.iterator();
-        flattened_data[i] = try allocator.alloc(f32, 600 * 1024);
-        while (j < 600) : (j += 1) {
+        flattened_data[i] = try allocator.alloc(f32, input_samples * 1024);
+        while (j < input_samples) : (j += 1) {
             const val = (spec_it.next() orelse break).value_ptr.*;
 
             for (val) |v| {
@@ -92,10 +94,29 @@ pub fn main() !void {
     }
 
     // Set up the neural network architecture
-    // 4 layers -> 2 hidden, 1 input and 1 output layer
-    // Since the input arrays are 600 long,
-    const arch_type = [_]usize{ 600, 1200, 1200, 10 };
-    _ = arch_type;
+    // 3 layers -> 1 hidden, 1 input and 1 output layer
+    // Since the input arrays are "input_samples" * 1024 long, the input layer has that many nodes.
+    var arch_type = [_]usize{ input_samples * 1024, 2 * input_samples * 1024, 10 };
+    const architecture = try nn.createArchitecture(allocator, 3, &arch_type);
+    defer nn.destroyArchitecture(allocator, architecture);
+
+    // Learning rate
+    const alpha = 0.15;
+
+    // Iterate for 20000 epochs
+    log.info("Iterating", .{});
+    var epoch: usize = 0;
+    while (epoch < 20000) : (epoch += 1) {
+        log.info("Epoch {d}", .{epoch});
+        for (0..flattened_data.len) |i| {
+            nn.feedInput(&architecture[0], flattened_data, i);
+            nn.forwardPropagation(architecture);
+            nn.backwardPropagation(architecture, expected_outputs, i);
+            nn.updateWeights(architecture, alpha);
+        }
+    }
+    
+    log.info("{any}", .{architecture[2]});
 }
 
 // Looping over the directories and related stuff, including reading the actual audio

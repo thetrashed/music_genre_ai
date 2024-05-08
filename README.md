@@ -8,10 +8,10 @@ The code requires Zig 0.12.0 for compilation. Since it uses `mmap` for mapping f
 https://ziglang.org/download/
 
 ### 2. Get the testing data
-Get the GZTAN dataset from here:
+Get the GZTAN dataset from here:<br/>
 https://www.kaggle.com/datasets/andradaolteanu/gtzan-dataset-music-genre-classification/data
 
-**Note:** The `jazz.00054.wav` file is corrupted and needs to be downloaded and replaced with the file from here:
+**Note:** The `jazz.00054.wav` file is corrupted and needs to be downloaded and replaced with the file from here:<br/>
 https://www.kaggle.com/datasets/andradaolteanu/gtzan-dataset-music-genre-classification/discussion/158649
 
 ### 3. Clone the repository
