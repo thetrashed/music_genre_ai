@@ -5,12 +5,17 @@ const wav = @import("wav.zig");
 const dft = @import("dft.zig");
 const nn = @import("neural_network.zig");
 
+pub const std_options = .{
+    .log_level = .info,
+};
 const log = std.log.scoped(.main);
 
-const fft_size = 1024;
-const dir_path = "test_music/Data/genres_original";
+const input_samples = 20;
+const num_files = 1000;
+const fft_size = 512;
 
-const input_samples = 10;
+const model_file = "neural_network.model";
+const dir_path = "test_music/Data/genres_original";
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -20,7 +25,7 @@ pub fn main() !void {
     }
 
     // Store the expected outputs in a two dimensional array
-    const expected_outputs: [][]f32 = try allocator.alloc([]f32, 1000);
+    const expected_outputs: [][]f32 = try allocator.alloc([]f32, num_files);
     defer {
         for (expected_outputs) |outputs| {
             allocator.free(outputs);
@@ -45,7 +50,7 @@ pub fn main() !void {
     defer directories.close();
 
     // Allocate space for the spectograms
-    const spectograms: []dft.Spectogram = try allocator.alloc(dft.Spectogram, 1000);
+    const spectograms: []dft.Spectogram = try allocator.alloc(dft.Spectogram, num_files);
     defer allocator.free(spectograms);
     errdefer {
         for (spectograms) |*spectogram| {
@@ -75,10 +80,10 @@ pub fn main() !void {
         // Normalise the spectrum
         spectogram.normalise();
 
-        var j: usize = 0;
         // The flattening part
+        var j: usize = 0;
         var spec_it = spectogram.map.iterator();
-        flattened_data[i] = try allocator.alloc(f32, input_samples * 1024);
+        flattened_data[i] = try allocator.alloc(f32, input_samples * fft_size);
         while (j < input_samples) : (j += 1) {
             const val = (spec_it.next() orelse break).value_ptr.*;
 
@@ -95,9 +100,9 @@ pub fn main() !void {
 
     // Set up the neural network architecture
     // 3 layers -> 1 hidden, 1 input and 1 output layer
-    // Since the input arrays are "input_samples" * 1024 long, the input layer has that many nodes.
-    var arch_type = [_]usize{ input_samples * 1024, 2 * input_samples * 1024, 10 };
-    const architecture = try nn.createArchitecture(allocator, 3, &arch_type);
+    // Since the input arrays are "input_samples" * "fft_size" long, the input layer has that many nodes.
+    var arch_type = [_]usize{ input_samples * fft_size, 2 * input_samples * fft_size, 2 * input_samples * fft_size, 10 };
+    const architecture = try nn.createArchitecture(allocator, 4, &arch_type);
     defer nn.destroyArchitecture(allocator, architecture);
 
     // Learning rate
@@ -115,8 +120,20 @@ pub fn main() !void {
             nn.updateWeights(architecture, alpha);
         }
     }
-    
-    log.info("{any}", .{architecture[2]});
+
+    // Write the model weights (actually the neurons) to a file
+    var mf_ptr = std.fs.cwd().openFile(model_file, .{}) catch |err| switch (err) {
+        error.FileNotFound => try std.fs.cwd().createFile(model_file, .{}),
+        else => return err,
+    };
+    defer mf_ptr.close();
+
+    const writer = mf_ptr.writer();
+    for (architecture) |layer| {
+        for (layer.neu) |neuron| {
+            try neuron.writeToFile(writer);
+        }
+    }
 }
 
 // Looping over the directories and related stuff, including reading the actual audio

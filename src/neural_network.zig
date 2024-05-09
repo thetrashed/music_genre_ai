@@ -39,6 +39,14 @@ const Neuron = struct {
         return ret_struct;
     }
 
+    pub fn writeToFile(self: Self, writer: anytype) !void {
+        var slice = mem.sliceAsBytes(self.out_weights.?);
+        try writer.writeAll(slice);
+
+        slice = mem.sliceAsBytes(self.dw.?);
+        try writer.writeAll(slice);
+    }
+
     pub fn deinit(self: Self) void {
         if (self.out_weights) |out_weights| {
             self.allocator.free(out_weights);
