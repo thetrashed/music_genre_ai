@@ -1,6 +1,12 @@
-zig-out/
-zig-cache/
+Zig/zig-out/
+Zig/zig-cache/
 test_music/
+Python/.venv/
+Python/__pycache__/
 *.png
 vgcore*
 valgrind-out.txt
+*.model
+*.json
+*.keras
+

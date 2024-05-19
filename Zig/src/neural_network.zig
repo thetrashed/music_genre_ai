@@ -45,6 +45,8 @@ const Neuron = struct {
 
         slice = mem.sliceAsBytes(self.dw.?);
         try writer.writeAll(slice);
+
+        try writer.print("{d}", .{self.bias});
     }
 
     pub fn deinit(self: Self) void {
@@ -250,6 +252,21 @@ test "xor_nn" {
             forwardPropagation(architecture);
             backwardPropagation(architecture, outputs, i);
             updateWeights(architecture, alpha);
+        }
+    }
+
+    const test_file = "test_file.model";
+    var tf_ptr = std.fs.cwd().openFile(test_file, .{}) catch |err| switch (err) {
+        error.FileNotFound => try std.fs.cwd().createFile(test_file, .{}),
+        else => return err,
+    };
+    defer tf_ptr.close();
+
+    const writer = tf_ptr.writer();
+    for (architecture, 0..) |layer, i| {
+        for (layer.neu) |neuron| {
+            std.log.warn("layer no: {d}", .{i});
+            try neuron.writeToFile(writer);
         }
     }
 
