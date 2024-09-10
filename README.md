@@ -1,5 +1,5 @@
 # Music Genre Dectection AI
-This repository contains the code for a music genre identification AI that uses neural networks to identify the genre of a music file. The project has been implemented in two languages: Python and Zig. The Python aspect of the project has been implemented by [@mushahidhussian](https://github.com/mushahidhussian).
+This repository contains the code for a music genre identification AI that uses neural networks to identify the genre of a music file. The project has been implemented in two languages: Python and Zig. The Python aspect of the project has been implemented by [@mushahidhussian](https://github.com/Mushahid-Phy).
 
 ## Comparison of the Two Implementations
 The Zig portion implements everything from the reading of the audio files, to the generation of spectograms, to the neural network without the use of any external libraries. The Python portion on the other hand uses external libraries for all of these tasks (libraries such as numpy, librosa, keras, tensorflow).
